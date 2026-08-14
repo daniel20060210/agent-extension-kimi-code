@@ -7,7 +7,7 @@ on:
         description: Immutable extension version
         required: true
       min_tutti_version:
-        description: First released Tutti version that reads the authentication-v1 Kimi index
+        description: First released Tutti version that reads the account-usage-v1 Kimi index
         required: true
       withdraw_versions:
         description: Comma-separated historical extension versions to mark withdrawn in versions.json
@@ -21,7 +21,7 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   AGENT_KEY: kimi-code
-  AGENT_METADATA_PATH: agents/kimi-code/authentication-v1
+  AGENT_METADATA_PATH: agents/kimi-code/account-usage-v1
   MIN_TUTTI_VERSION: ${{ inputs.min_tutti_version }}
   SIGNING_KEY_ID: tutti-kimi-code-release-v1
   S3_PREFIX: tutti-agent-releases
@@ -54,6 +54,15 @@ jobs:
 
       - name: Run repository checks
         run: pnpm check
+
+      - name: Verify account usage helper is published
+        run: |
+          package_spec="$(node --input-type=module -e '
+            import fs from "node:fs";
+            const profile = JSON.parse(fs.readFileSync("extension/profiles/account-usage.json", "utf8"));
+            process.stdout.write(profile.runtime.package);
+          ')"
+          npm view "${package_spec}" version --json >/dev/null
 
       - name: Build extension package
         env:

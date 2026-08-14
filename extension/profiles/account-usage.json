@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "tutti.agent.account-usage-probe.v1",
+  "runtime": {
+    "package": "@tutti-os/kimi-code-account-usage-probe@0.1.0",
+    "executable": "${installRoot}/node_modules/.bin/kimi-code-account-usage",
+    "args": ["--output", "json"],
+    "timeoutMs": 10000
+  }
+}

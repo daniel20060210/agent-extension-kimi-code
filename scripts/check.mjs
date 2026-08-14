@@ -46,6 +46,17 @@ const expectedAuthentication = {
   }]
 };
 if (JSON.stringify(authentication) !== JSON.stringify(expectedAuthentication)) throw new Error('Kimi Code terminal login contract changed');
+const accountUsage = JSON.parse(await readFile(path.join(packageDir, manifest.profiles.accountUsage), 'utf8'));
+const expectedAccountUsage = {
+  schemaVersion: 'tutti.agent.account-usage-probe.v1',
+  runtime: {
+    package: '@tutti-os/kimi-code-account-usage-probe@0.1.0',
+    executable: '${installRoot}/node_modules/.bin/kimi-code-account-usage',
+    args: ['--output', 'json'],
+    timeoutMs: 10000
+  }
+};
+if (JSON.stringify(accountUsage) !== JSON.stringify(expectedAccountUsage)) throw new Error('Kimi Code account usage companion contract changed');
 const composer = JSON.parse(await readFile(path.join(packageDir, manifest.profiles.composer), 'utf8'));
 const expectedModes = [{ runtimeId: 'plan', semantic: 'read-only' }, { runtimeId: 'default', semantic: 'ask-before-write' }, { runtimeId: 'auto', semantic: 'accept-edits' }, { runtimeId: 'yolo', semantic: 'full-access' }];
 if (JSON.stringify(composer.permissionModes) !== JSON.stringify(expectedModes)) throw new Error('Kimi Code permission mappings changed');

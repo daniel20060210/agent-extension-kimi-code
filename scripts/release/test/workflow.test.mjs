@@ -21,8 +21,9 @@ test("release workflow protects immutable and mutable objects", async () => {
   );
   assert.match(
     workflow,
-    /AGENT_METADATA_PATH: agents\/kimi-code\/authentication-v1/u
+    /AGENT_METADATA_PATH: agents\/kimi-code\/account-usage-v1/u
   );
+  assert.match(workflow, /npm view "\$\{package_spec\}" version/u);
   assert.match(
     workflow,
     /metadata_prefix="\$\{S3_PREFIX:\+\$\{S3_PREFIX\}\/\}\$\{AGENT_METADATA_PATH\}"/u
@@ -59,6 +60,24 @@ test("release workflow protects immutable and mutable objects", async () => {
   assert.match(publicVerification, /verify-tutti-agent-extension-release\.mjs/u);
   assert.match(publicVerification, /--public-key-file/u);
   assert.match(publicVerification, /--package-dir build\/tutti-agent\/package/u);
+});
+
+test("account usage helper publication uses scoped trusted publishing", async () => {
+  const workflow = await readFile(
+    path.join(
+      repositoryRoot,
+      ".github/workflows/publish-account-usage-probe.yml"
+    ),
+    "utf8"
+  );
+  assert.match(workflow, /id-token: write/u);
+  assert.match(workflow, /environment: npm/u);
+  assert.match(
+    workflow,
+    /npm publish \.\/packages\/account-usage-probe --access public --provenance/u
+  );
+  assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN|NPM_TOKEN/u);
+  assert.doesNotMatch(workflow, /uses:\s+[^\s#]+@v\d+/u);
 });
 
 test("AWS bootstrap is repository scoped and contains no credentials", async () => {
