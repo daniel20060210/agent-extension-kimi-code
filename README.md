@@ -55,12 +55,12 @@ submitted to the Kimi ACP runtime. Kimi Code remains the owner of login and
 provider configuration. Because the pinned 0.34.0 ACP runtime does not publish
 structured Coding Plan account windows, this repository publishes the separate
 `@tutti-os/kimi-code-account-usage-probe` helper. The signed declarative profile
-pins that companion package and its command; tuttid installs it into the
-Target-scoped managed runtime, verifies that the executable stays inside that
-runtime root, and consumes only the versioned provider-neutral JSON result.
-The npm package builds the Helper as one self-contained CommonJS executable so
-tuttid can execute an immutable single-file snapshot without resolving mutable
-sibling modules or runtime dependencies.
+pins that companion package and its Node script; tuttid installs it into an
+independent Target-scoped companion runtime, verifies the fixed Node interpreter
+and script bytes separately, and consumes only the versioned provider-neutral
+JSON result. The npm package builds the Helper as one self-contained CommonJS
+script so tuttid can execute verified bytes without platform-specific npm shims,
+mutable sibling modules, or runtime dependencies.
 
 The helper owns Kimi TOML selection, OAuth credential storage, the trusted
 `https://auth.kimi.com` issuer to `https://api.kimi.com/coding/v1` usage-origin

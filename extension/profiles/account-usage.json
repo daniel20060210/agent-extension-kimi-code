@@ -2,7 +2,8 @@
   "schemaVersion": "tutti.agent.account-usage-probe.v1",
   "runtime": {
     "package": "@tutti-os/kimi-code-account-usage-probe@0.1.0",
-    "executable": "${installRoot}/node_modules/.bin/kimi-code-account-usage",
+    "kind": "node-script",
+    "script": "${installRoot}/node_modules/@tutti-os/kimi-code-account-usage-probe/dist/cli.cjs",
     "args": ["--output", "json"],
     "timeoutMs": 10000
   }

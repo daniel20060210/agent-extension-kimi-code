@@ -343,14 +343,14 @@ test("both validators constrain the account usage companion", async () => {
 
   accountUsage.runtime.package =
     "@tutti-os/kimi-code-account-usage-probe@0.1.0";
-  accountUsage.runtime.executable = "/tmp/foreign-probe";
+  accountUsage.runtime.script = "/tmp/foreign-probe";
   await writeFile(
     accountUsagePath,
     `${JSON.stringify(accountUsage, null, 2)}\n`
   );
   await assertBothValidatorsReject(
     packageDir,
-    /executable must stay under installRoot/u
+    /script must stay under installRoot/u
   );
 });
 

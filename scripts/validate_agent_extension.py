@@ -483,7 +483,7 @@ def validate_account_usage_profile(profile: dict[str, Any]) -> None:
         raise ValidationError("accountUsage.runtime must be an object")
     reject_unknown_keys(
         runtime,
-        {"package", "executable", "args", "timeoutMs"},
+        {"package", "kind", "script", "args", "timeoutMs"},
         "accountUsage.runtime",
     )
     package = require_string(runtime.get("package"), "accountUsage.runtime.package")
@@ -491,15 +491,15 @@ def validate_account_usage_profile(profile: dict[str, Any]) -> None:
         raise ValidationError(
             "accountUsage.runtime.package must use an exact scoped npm version"
         )
-    executable = require_string(
-        runtime.get("executable"), "accountUsage.runtime.executable"
-    )
-    if not executable.startswith("${installRoot}/") or any(
-        token in executable
+    if runtime.get("kind") != "node-script":
+        raise ValidationError("accountUsage.runtime.kind must be node-script")
+    script = require_string(runtime.get("script"), "accountUsage.runtime.script")
+    if not script.startswith("${installRoot}/") or any(
+        token in script
         for token in ("|", ";", "&", "`", "\n", "\r", "<", ">", "$(")
     ):
         raise ValidationError(
-            "accountUsage.runtime.executable must stay under installRoot"
+            "accountUsage.runtime.script must stay under installRoot"
         )
     args = require_string_array(
         runtime.get("args"), "accountUsage.runtime.args", non_empty=True

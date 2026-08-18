@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { copyFile, chmod, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,15 +13,14 @@ const packageRoot = path.resolve(
   ".."
 );
 
-test("published CLI runs from a standalone executable snapshot", async () => {
+test("published CLI runs as a standalone script through a fixed Node interpreter", async () => {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), "kimi-usage-cli-"));
   try {
     const snapshot = path.join(temporaryRoot, "runtime");
     await copyFile(path.join(packageRoot, "dist", "cli.cjs"), snapshot);
-    await chmod(snapshot, 0o500);
     const { stdout, stderr } = await execFileAsync(
-      snapshot,
-      ["--output", "json"],
+      process.execPath,
+      [snapshot, "--output", "json"],
       {
         env: { ...process.env, KIMI_MODEL_NAME: "snapshot-api-model" }
       }

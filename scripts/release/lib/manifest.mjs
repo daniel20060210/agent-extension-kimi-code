@@ -605,7 +605,7 @@ function validateProfileShape(kind, profile) {
     rejectUnknownKeys(profile, ["schemaVersion", "runtime"], kind);
     rejectObjectKeys(
       profile.runtime,
-      ["package", "executable", "args", "timeoutMs"],
+      ["package", "kind", "script", "args", "timeoutMs"],
       "accountUsage.runtime"
     );
     const packageName = requireString(
@@ -621,16 +621,19 @@ function validateProfileShape(kind, profile) {
         "accountUsage.runtime.package must use an exact scoped npm version"
       );
     }
-    const executable = requireString(
-      profile.runtime.executable,
-      "accountUsage.runtime.executable"
+    if (profile.runtime.kind !== "node-script") {
+      throw new Error("accountUsage.runtime.kind must be node-script");
+    }
+    const script = requireString(
+      profile.runtime.script,
+      "accountUsage.runtime.script"
     );
     if (
-      !executable.startsWith("${installRoot}/") ||
-      /[|;&`\n\r<>]|\$\(/u.test(executable)
+      !script.startsWith("${installRoot}/") ||
+      /[|;&`\n\r<>]|\$\(/u.test(script)
     ) {
       throw new Error(
-        "accountUsage.runtime.executable must stay under installRoot"
+        "accountUsage.runtime.script must stay under installRoot"
       );
     }
     validateStringArray(
