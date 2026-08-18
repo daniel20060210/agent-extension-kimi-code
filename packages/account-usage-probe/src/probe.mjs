@@ -322,19 +322,46 @@ function parseUsageQuotas(payload, capturedAtUnixMs) {
   for (const rawLimit of root.limits ?? []) {
     const limit = recordValue(rawLimit);
     if (!limit) throw new ProbeFailure("parse_failed");
+    const quotaType = quotaTypeFromWindow(recordValue(limit.window));
+    if (!quotaType) throw new ProbeFailure("parse_failed");
     const detail = recordValue(limit.detail) ??
       (limit.detail === undefined ? limit : null);
     if (!detail) throw new ProbeFailure("parse_failed");
     const quota = usageRowToQuota({
       row: detail,
-      quotaType: "model",
-      capturedAtUnixMs,
-      modelName: firstSafeLabel(limit.name, limit.title, limit.scope, detail.name, detail.title)
+      quotaType,
+      capturedAtUnixMs
     });
     if (!quota) throw new ProbeFailure("parse_failed");
     quotas.push(quota);
   }
   return quotas;
+}
+
+function quotaTypeFromWindow(window) {
+  if (!window) return null;
+  const duration = finiteNumber(window.duration);
+  const timeUnit = stringValue(window.timeUnit ?? window.time_unit);
+  if (duration === null || duration <= 0 || !Number.isInteger(duration)) {
+    return null;
+  }
+  if (timeUnit === "TIME_UNIT_MONTH") {
+    return duration === 1 ? "monthly" : null;
+  }
+  const secondsPerUnit = {
+    TIME_UNIT_SECOND: 1,
+    TIME_UNIT_MINUTE: 60,
+    TIME_UNIT_HOUR: 60 * 60,
+    TIME_UNIT_DAY: 24 * 60 * 60,
+    TIME_UNIT_WEEK: 7 * 24 * 60 * 60
+  }[timeUnit];
+  if (!secondsPerUnit) return null;
+  const seconds = duration * secondsPerUnit;
+  if (!Number.isSafeInteger(seconds)) return null;
+  if (seconds === 5 * 60 * 60) return "session";
+  if (seconds === 24 * 60 * 60) return "daily";
+  if (seconds === 7 * 24 * 60 * 60) return "weekly";
+  return null;
 }
 
 function usageRowToQuota(input) {
@@ -388,20 +415,6 @@ function absoluteUnixMs(value) {
   if (typeof value !== "string" || !value.trim()) return null;
   const parsed = Date.parse(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function firstSafeLabel(...values) {
-  for (const value of values) {
-    const label = stringValue(value);
-    if (
-      label &&
-      label.length <= 128 &&
-      !Array.from(label).some((character) => /[\u0000-\u001f\u007f]/.test(character))
-    ) {
-      return label;
-    }
-  }
-  return "";
 }
 
 function finiteNumber(value) {

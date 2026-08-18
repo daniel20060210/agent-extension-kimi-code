@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   ACCOUNT_USAGE_SCHEMA_VERSION,
@@ -7,7 +9,18 @@ import {
 } from "../src/probe.mjs";
 
 const capturedAtUnixMs = 1_770_000_000_000;
-const credentialPath = "/private/kimi/credentials/kimi-code.json";
+const testRoot = path.resolve(tmpdir(), "tutti-kimi-account-usage-probe-tests");
+const kimiHome = path.join(testRoot, "kimi");
+const configPath = path.join(kimiHome, "config.toml");
+const credentialPath = path.join(kimiHome, "credentials", "kimi-code.json");
+const homeDirectory = path.join(testRoot, "home");
+const defaultHome = path.join(homeDirectory, ".kimi-code");
+const defaultConfigPath = path.join(defaultHome, "config.toml");
+const defaultCredentialPath = path.join(
+  defaultHome,
+  "credentials",
+  "kimi-code.json"
+);
 
 test("API billing returns an explicit empty quota result without reading OAuth credentials", async () => {
   const reads = [];
@@ -37,15 +50,12 @@ test("default configuration root remains ~/.kimi-code", async () => {
   const reads = [];
   const result = await probeKimiAccountUsage({
     env: {},
-    homeDirectory: () => "/private/home",
+    homeDirectory: () => homeDirectory,
     now: () => capturedAtUnixMs,
     readFile: mapReader(
       new Map([
-        ["/private/home/.kimi-code/config.toml", managedConfig()],
-        [
-          "/private/home/.kimi-code/credentials/kimi-code.json",
-          credentials("secret-token")
-        ]
+        [defaultConfigPath, managedConfig()],
+        [defaultCredentialPath, credentials("secret-token")]
       ]),
       reads
     ),
@@ -57,8 +67,8 @@ test("default configuration root remains ~/.kimi-code", async () => {
 
   assert.equal(result.outcome, "available");
   assert.deepEqual(reads, [
-    "/private/home/.kimi-code/config.toml",
-    "/private/home/.kimi-code/credentials/kimi-code.json"
+    defaultConfigPath,
+    defaultCredentialPath
   ]);
 });
 
@@ -71,11 +81,11 @@ for (const [name, baseUrl] of [
     const reads = [];
     let fetchCalls = 0;
     const files = new Map([
-      ["/private/kimi/config.toml", managedConfig({ baseUrl })],
+      [configPath, managedConfig({ baseUrl })],
       [credentialPath, credentials("secret-token")]
     ]);
     const result = await probeKimiAccountUsage({
-      env: { KIMI_CODE_HOME: "/private/kimi" },
+      env: { KIMI_CODE_HOME: kimiHome },
       now: () => capturedAtUnixMs,
       readFile: mapReader(files, reads),
       fetch: async () => {
@@ -86,7 +96,7 @@ for (const [name, baseUrl] of [
 
     assert.equal(result.errorCode, "config_invalid");
     assert.equal(result.outcome, "error");
-    assert.deepEqual(reads, ["/private/kimi/config.toml"]);
+    assert.deepEqual(reads, [configPath]);
     assert.equal(fetchCalls, 0);
     assert.doesNotMatch(JSON.stringify(result), /secret-token|usage\.invalid/);
   });
@@ -96,7 +106,7 @@ test("untrusted environment origin is rejected before fallback credentials are r
   const reads = [];
   const result = await probeKimiAccountUsage({
     env: {
-      KIMI_CODE_HOME: "/private/kimi",
+      KIMI_CODE_HOME: kimiHome,
       KIMI_CODE_BASE_URL: "http://api.kimi.com/coding/v1"
     },
     now: () => capturedAtUnixMs,
@@ -113,7 +123,7 @@ test("untrusted environment origin is rejected before fallback credentials are r
   });
 
   assert.equal(result.errorCode, "config_invalid");
-  assert.deepEqual(reads, ["/private/kimi/config.toml"]);
+  assert.deepEqual(reads, [configPath]);
 });
 
 test("OAuth issuer, credential key, and usage endpoint must use the trusted Kimi binding", async () => {
@@ -124,11 +134,11 @@ test("OAuth issuer, credential key, and usage endpoint must use the trusted Kimi
   ]) {
     const reads = [];
     const result = await probeKimiAccountUsage({
-      env: { KIMI_CODE_HOME: "/private/kimi" },
+      env: { KIMI_CODE_HOME: kimiHome },
       now: () => capturedAtUnixMs,
       readFile: mapReader(
         new Map([
-          ["/private/kimi/config.toml", managedConfig(override)],
+          [configPath, managedConfig(override)],
           [credentialPath, credentials("secret-token")]
         ]),
         reads
@@ -138,7 +148,7 @@ test("OAuth issuer, credential key, and usage endpoint must use the trusted Kimi
       }
     });
     assert.equal(result.errorCode, "config_invalid");
-    assert.deepEqual(reads, ["/private/kimi/config.toml"]);
+    assert.deepEqual(reads, [configPath]);
   }
 });
 
@@ -148,13 +158,13 @@ test("OAuth issuer environment overrides are rejected before reading credentials
     let fetchCalls = 0;
     const result = await probeKimiAccountUsage({
       env: {
-        KIMI_CODE_HOME: "/private/kimi",
+        KIMI_CODE_HOME: kimiHome,
         [issuerVariable]: "https://login.invalid"
       },
       now: () => capturedAtUnixMs,
       readFile: mapReader(
         new Map([
-          ["/private/kimi/config.toml", managedConfig()],
+          [configPath, managedConfig()],
           [credentialPath, credentials("secret-token")]
         ]),
         reads
@@ -166,7 +176,7 @@ test("OAuth issuer environment overrides are rejected before reading credentials
     });
 
     assert.equal(result.errorCode, "config_invalid");
-    assert.deepEqual(reads, ["/private/kimi/config.toml"]);
+    assert.deepEqual(reads, [configPath]);
     assert.equal(fetchCalls, 0);
   }
 });
@@ -174,29 +184,20 @@ test("OAuth issuer environment overrides are rejected before reading credentials
 test("trusted managed account sends a request-local token and returns strict normalized quotas", async () => {
   const requests = [];
   const files = new Map([
-    ["/private/kimi/config.toml", managedConfig()],
+    [configPath, managedConfig()],
     [credentialPath, credentials("secret-token")]
   ]);
   const result = await probeKimiAccountUsage({
-    env: { KIMI_CODE_HOME: "/private/kimi" },
+    env: { KIMI_CODE_HOME: kimiHome },
     now: () => capturedAtUnixMs,
     readFile: mapReader(files),
     fetch: async (url, init) => {
       requests.push({ url, init });
       return new Response(
-        JSON.stringify({
-          usage: {
-            limit: 100,
-            used: 28,
-            reset_at: "2026-08-21T00:00:00.000Z"
-          },
-          limits: [
-            {
-              name: "K2 model",
-              detail: { limit: 20, remaining: 5, reset_in: 60 }
-            }
-          ]
-        }),
+        await readFile(
+          new URL("../testdata/kimi-0.34.0-usages.json", import.meta.url),
+          "utf8"
+        ),
         { status: 200, headers: { "content-type": "application/json" } }
       );
     }
@@ -213,11 +214,71 @@ test("trusted managed account sends a request-local token and returns strict nor
   assert.doesNotMatch(JSON.stringify(result), /secret-token/);
 });
 
+for (const [window, expectedQuotaType] of [
+  [{ duration: 5, timeUnit: "TIME_UNIT_HOUR" }, "session"],
+  [{ duration: 24, timeUnit: "TIME_UNIT_HOUR" }, "daily"],
+  [{ duration: 7, timeUnit: "TIME_UNIT_DAY" }, "weekly"],
+  [{ duration: 1, timeUnit: "TIME_UNIT_MONTH" }, "monthly"]
+]) {
+  test(`maps ${JSON.stringify(window)} to ${expectedQuotaType}`, async () => {
+    const result = await probeKimiAccountUsage({
+      env: { KIMI_CODE_HOME: kimiHome },
+      now: () => capturedAtUnixMs,
+      readFile: mapReader(
+        new Map([
+          [configPath, managedConfig()],
+          [credentialPath, credentials("secret-token")]
+        ])
+      ),
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            usage: { limit: 10, used: 2 },
+            limits: [{ window, detail: { limit: 10, remaining: 4 } }]
+          }),
+          { status: 200 }
+        )
+    });
+
+    assert.equal(result.outcome, "available");
+    assert.equal(result.quotas[1].quotaType, expectedQuotaType);
+  });
+}
+
+test("an unrepresentable usage window fails closed instead of becoming a model quota", async () => {
+  const result = await probeKimiAccountUsage({
+    env: { KIMI_CODE_HOME: kimiHome },
+    now: () => capturedAtUnixMs,
+    readFile: mapReader(
+      new Map([
+        [configPath, managedConfig()],
+        [credentialPath, credentials("secret-token")]
+      ])
+    ),
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          usage: { limit: 10, used: 2 },
+          limits: [
+            {
+              window: { duration: 90, timeUnit: "TIME_UNIT_MINUTE" },
+              detail: { limit: 10, remaining: 4 }
+            }
+          ]
+        }),
+        { status: 200 }
+      )
+  });
+
+  assert.equal(result.outcome, "error");
+  assert.equal(result.errorCode, "parse_failed");
+});
+
 test("401 rereads credentials once and retries only when the token changed", async () => {
   let credentialReads = 0;
   const requests = [];
   const result = await probeKimiAccountUsage({
-    env: { KIMI_CODE_HOME: "/private/kimi" },
+    env: { KIMI_CODE_HOME: kimiHome },
     now: () => capturedAtUnixMs,
     readFile: async (filePath) => {
       if (filePath.endsWith("config.toml")) return managedConfig();
@@ -241,7 +302,7 @@ test("401 rereads credentials once and retries only when the token changed", asy
 test("401 with an unchanged token fails closed without a second request", async () => {
   let fetchCalls = 0;
   const result = await probeKimiAccountUsage({
-    env: { KIMI_CODE_HOME: "/private/kimi" },
+    env: { KIMI_CODE_HOME: kimiHome },
     now: () => capturedAtUnixMs,
     readFile: async (filePath) =>
       filePath.endsWith("config.toml")
@@ -263,7 +324,7 @@ for (const [name, response] of [
 ]) {
   test(`${name} is parse_failed and does not expose raw payload`, async () => {
     const result = await probeKimiAccountUsage({
-      env: { KIMI_CODE_HOME: "/private/kimi" },
+      env: { KIMI_CODE_HOME: kimiHome },
       now: () => capturedAtUnixMs,
       readFile: async (filePath) =>
         filePath.endsWith("config.toml")
@@ -280,14 +341,14 @@ for (const [name, response] of [
     });
     assert.doesNotMatch(
       JSON.stringify(result),
-      /future|token=in-body|secret-token|\/private\/kimi/
+      new RegExp(`future|token=in-body|secret-token|${escapeRegExp(kimiHome)}`)
     );
   });
 }
 
 test("oversized successful payload is parse_failed without unbounded buffering", async () => {
   const result = await probeKimiAccountUsage({
-    env: { KIMI_CODE_HOME: "/private/kimi" },
+    env: { KIMI_CODE_HOME: kimiHome },
     now: () => capturedAtUnixMs,
     readFile: async (filePath) =>
       filePath.endsWith("config.toml")
@@ -304,11 +365,11 @@ test("provider, filesystem, and network failures expose only stable error codes"
   const secrets = [
     "bearer-secret",
     "https://malicious.invalid/private",
-    "/private/kimi/credentials/kimi-code.json",
+    credentialPath,
     "raw-provider-body"
   ];
   const result = await probeKimiAccountUsage({
-    env: { KIMI_CODE_HOME: "/private/kimi" },
+    env: { KIMI_CODE_HOME: kimiHome },
     now: () => capturedAtUnixMs,
     readFile: async (filePath) => {
       if (filePath.endsWith("config.toml")) return managedConfig();
@@ -357,4 +418,8 @@ function mapReader(files, reads = []) {
     if (files.has(filePath)) return files.get(filePath);
     throw Object.assign(new Error(`missing ${filePath}`), { code: "ENOENT" });
   };
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
